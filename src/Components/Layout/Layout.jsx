@@ -2,9 +2,9 @@ import Navbar from './Navbar';
 
 export default function Layout({ children }) {
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 text-black dark:text-white">
-      
-      <main>{children}</main>
+    // ЗМІНИ: h-screen (фіксована висота), overflow-hidden (без скролу), bg-black
+    <div className="h-screen w-screen bg-black overflow-hidden text-white">
+      <main className="w-full h-full">{children}</main>
     </div>
   );
 }
