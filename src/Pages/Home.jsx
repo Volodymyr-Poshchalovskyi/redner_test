@@ -112,7 +112,11 @@ export default function RealEstateViewer() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [finishPackage, setFinishPackage] = useState('standard'); 
 
+  // --- Refs ---
   const flyIntervalRef = useRef(null);
+  const dragRef = useRef({ isDragging: false, startX: 0 });
+  const wheelAccumulatorRef = useRef(0); // NEW: для накопичення свайпу тачпада
+  
   const FOLDER_PATH = '/oblit'; 
 
   // --- DATA ---
@@ -135,7 +139,8 @@ export default function RealEstateViewer() {
   const startFlyover = () => {
     if (isFlying) return;
     setIsFlying(true);
-    const totalDuration = 10000; 
+    
+    const totalDuration = 6000; 
     const delayPerFrame = totalDuration / allFramesData.length;
 
     if (flyIntervalRef.current) clearInterval(flyIntervalRef.current);
@@ -161,6 +166,75 @@ export default function RealEstateViewer() {
     });
   };
 
+  // --- MOUSE DRAG HANDLERS ---
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return;
+    dragRef.current.isDragging = true;
+    dragRef.current.startX = e.clientX;
+    document.body.style.cursor = 'grabbing';
+    stopFlyover(); 
+  };
+
+  const handleMouseMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+
+    const x = e.clientX;
+    const delta = x - dragRef.current.startX;
+    const sensitivity = 8; 
+
+    if (Math.abs(delta) > sensitivity) {
+      // Inverted logic: Drag Right (delta > 0) -> Rotate Left (-1)
+      const direction = delta > 0 ? -1 : 1;
+      
+      setCurrentIndex((prev) => {
+        return direction === 1 
+          ? (prev + 1) % allFramesData.length 
+          : (prev - 1 + allFramesData.length) % allFramesData.length;
+      });
+
+      dragRef.current.startX = x;
+    }
+  };
+
+  const handleMouseUp = () => {
+    dragRef.current.isDragging = false;
+    document.body.style.cursor = 'default';
+  };
+
+  // --- NEW: TOUCHPAD WHEEL HANDLER ---
+  const handleWheel = (e) => {
+    // Якщо це вертикальний скрол (наприклад, зум або скрол сторінки), ігноруємо для обертання
+    // Але якщо deltaX значний, то це горизонтальний свайп
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      stopFlyover();
+      
+      // Додаємо зміщення до акумулятора
+      wheelAccumulatorRef.current += e.deltaX;
+
+      // Поріг чутливості (чим більше число, тим "тугіше" крутиться)
+      const threshold = 30; 
+
+      if (Math.abs(wheelAccumulatorRef.current) > threshold) {
+        // Інверсія для тачпада:
+        // Свайп пальцями вправо зазвичай дає Negative DeltaX (на Mac/Natural Scrolling) 
+        // або Positive DeltaX (на Windows Standard).
+        // Щоб працювало як "пальці вправо -> крутимо вліво":
+        // Приймемо стандарт: якщо deltaX > 0 (ніби тягнемо скролбар вправо), робимо -1.
+        
+        const direction = wheelAccumulatorRef.current > 0 ? -1 : 1;
+
+        setCurrentIndex((prev) => {
+          return direction === 1 
+            ? (prev + 1) % allFramesData.length 
+            : (prev - 1 + allFramesData.length) % allFramesData.length;
+        });
+
+        // Скидаємо акумулятор після виконання дії
+        wheelAccumulatorRef.current = 0;
+      }
+    }
+  };
+
   const handleZoom = (delta) => {
     setZoomLevel(prev => Math.min(Math.max(prev + delta, 1), 1.8));
   };
@@ -181,8 +255,14 @@ export default function RealEstateViewer() {
       }
       if (e.key === ' ' && !showContactModal) isFlying ? stopFlyover() : startFlyover();
     };
+    
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
   }, [isFlying, showContactModal]);
 
   const getObjectDetails = (name) => unitsData[name] || {};
@@ -381,7 +461,14 @@ export default function RealEstateViewer() {
       </div>
 
       {/* --- MAIN 360 VIEWER AREA --- */}
-      <div className="relative flex-1 h-full bg-[#111] flex justify-center items-center overflow-hidden ml-[400px]">
+      <div 
+        className="relative flex-1 h-full bg-[#111] flex justify-center items-center overflow-hidden ml-[400px] cursor-grab active:cursor-grabbing"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel} // ADDED WHEEL LISTENER HERE
+      >
         
         {/* VIEW MODE CONTROLS */}
         <div className="absolute top-8 right-8 z-50 flex flex-col gap-2">
@@ -419,7 +506,7 @@ export default function RealEstateViewer() {
 
         {/* IMAGE */}
         <div 
-          className="relative flex justify-center items-center w-full h-full transition-transform duration-300 ease-out"
+          className="relative flex justify-center items-center w-full h-full transition-transform duration-300 ease-out pointer-events-none" 
           style={{ transform: `scale(${zoomLevel})` }}
         >
           <img
@@ -449,7 +536,7 @@ export default function RealEstateViewer() {
           {imageSize.w > 0 && (
             <svg
               viewBox={`0 0 ${imageSize.w} ${imageSize.h}`}
-              className="absolute inset-0 w-full h-full z-20"
+              className="absolute inset-0 w-full h-full z-20 pointer-events-none" 
               preserveAspectRatio="xMidYMid meet"
             >
               <defs>
@@ -508,6 +595,9 @@ export default function RealEstateViewer() {
                         stopFlyover();
                       }
                     }}
+                    onMouseDown={(e) => {
+                         // Pass through
+                    }}
                   />
                 );
               })}
@@ -516,7 +606,7 @@ export default function RealEstateViewer() {
         </div>
 
         {/* BOTTOM CONTROLS */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 z-30">
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 z-30 pointer-events-auto">
           <div className="bg-white/80 backdrop-blur-md rounded-full p-2 pl-3 pr-3 flex items-center gap-4 shadow-2xl border border-white/50">
             <button onClick={() => manualChangeFrame(-1)} className="p-3 text-slate-600 hover:text-slate-900 hover:bg-white rounded-full transition-all active:scale-95">
               <ChevronLeft size={22} />
@@ -614,7 +704,7 @@ export default function RealEstateViewer() {
   );
 }
 
-// --- TOOLTIP COMPONENT (UPDATED) ---
+// --- TOOLTIP COMPONENT ---
 function TooltipCursor({ name, isFlying, unitsData }) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
@@ -624,7 +714,6 @@ function TooltipCursor({ name, isFlying, unitsData }) {
     return () => window.removeEventListener('mousemove', handleMove);
   }, []);
 
-  // ВИПРАВЛЕННЯ: Якщо мишка над сайдбаром (x < 400), не показувати тултіп
   if (!name || isFlying || !unitsData[name] || pos.x < 400) return null;
   
   const unit = unitsData[name];
