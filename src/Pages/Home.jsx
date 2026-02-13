@@ -462,7 +462,7 @@ export default function RealEstateViewer() {
 
       {/* --- MAIN 360 VIEWER AREA --- */}
       <div 
-        className="relative flex-1 h-full bg-[#111] flex justify-center items-center overflow-hidden ml-[400px] cursor-grab active:cursor-grabbing"
+        className="relative flex-1 h-full bg-[#111] flex justify-center items-center overflow-hidden ml-[400px] cursor-grab active:cursor-grabbing select-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -560,7 +560,7 @@ export default function RealEstateViewer() {
                 if (isSelected) {
                   fill = 'rgba(16, 185, 129, 0.25)'; 
                   stroke = '#ffffff'; 
-                  strokeWidth = 3; 
+                  strokeWidth = 8; 
                   className += " animate-pulse-slow"; 
                 } else if (isHovered && !isFlying) {
                   fill = 'rgba(255, 255, 255, 0.1)'; 
@@ -606,14 +606,20 @@ export default function RealEstateViewer() {
         </div>
 
         {/* BOTTOM CONTROLS */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 z-30 pointer-events-auto">
+        <div 
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 z-30 pointer-events-auto"
+          // 👇 ДОДАЙТЕ ЦЕЙ РЯДОК 👇
+          onMouseDown={(e) => e.stopPropagation()} 
+        >
           <div className="bg-white/80 backdrop-blur-md rounded-full p-2 pl-3 pr-3 flex items-center gap-4 shadow-2xl border border-white/50">
             <button onClick={() => manualChangeFrame(-1)} className="p-3 text-slate-600 hover:text-slate-900 hover:bg-white rounded-full transition-all active:scale-95">
               <ChevronLeft size={22} />
             </button>
+            
             <button onClick={isFlying ? stopFlyover : startFlyover} className={`px-8 py-3 rounded-full font-bold text-sm tracking-wide transition-all active:scale-95 shadow-lg flex items-center gap-2 min-w-[160px] justify-center ${isFlying ? 'bg-white text-red-500 border border-red-100' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
               {isFlying ? (<> <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"/> STOP VIEW </>) : (<> <Maximize2 size={16}/> 360° VIEW </>)}
             </button>
+            
             <button onClick={() => manualChangeFrame(1)} className="p-3 text-slate-600 hover:text-slate-900 hover:bg-white rounded-full transition-all active:scale-95">
               <ChevronRight size={22} />
             </button>
